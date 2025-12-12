@@ -1,0 +1,46 @@
+# Build directories
+build/
+Debug/
+Release/
+cmake-build-*/
+
+# STM32CubeMX cache
+mx.scratch
+*.scratch
+
+# IDE and editor files
+.vscode/
+.settings/
+.project
+.cproject
+*.swp
+*.swo
+*~
+.DS_Store
+
+# CMake cache files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+
+# Compilation output
+*.o
+*.a
+*.elf
+*.hex
+*.bin
+*.map
+*.lst
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment
+.env
+venv/
+
+# OS-specific
+.DS_Store
+Thumbs.db
