@@ -8,5 +8,6 @@ void Motor_SetPWM(uint32_t compare);
 float Motor_GetRPM(void);
 void Motor_SetDirection(uint8_t forward);
 void Motor_Stop(void);
+float Motor_GetCurrent(void);
 
 #endif /* __MOTOR_H__ */

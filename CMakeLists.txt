@@ -51,6 +51,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/Core/Src/pid.c
     ${CMAKE_CURRENT_SOURCE_DIR}/Core/Src/motor.c
     ${CMAKE_CURRENT_SOURCE_DIR}/Core/Src/usart_cmd.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/Core/Src/adc.c
 )
 
 # Add include paths

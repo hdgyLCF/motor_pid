@@ -28,6 +28,7 @@
 #include "pid.h"
 #include <stdio.h>
 #include "motor.h"
+#include "adc.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -48,7 +49,8 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
+PID_Controller speed_pid;
+PID_Controller current_pid;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -95,6 +97,7 @@ int main(void)
   MX_TIM2_Init();
   MX_TIM4_Init();
   MX_USART1_UART_Init();
+  MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
 
   
@@ -109,10 +112,10 @@ int main(void)
   Motor_Init();
 
 
-  /* 设置PID和转速 */
-  PID_Init(0.6f, 2.0f, 0.02f, 0.01f, 0.0f, 999.0f);
-  PID_SetTarget(300.0f); /* default target RPM */
-  Motor_SetDirection(1); /* 1=forward (DIR1=1, DIR2=0) */
+  PID_Init(&speed_pid, 0.6f, 2.0f, 0.02f, 0.01f, -10.0f, 10.0f);
+  PID_Init(&current_pid, 1.0f, 5.0f, 0.0f, 0.01f, 0.0f, 999.0f);
+  PID_SetTarget(&speed_pid, 300.0f);
+  Motor_SetDirection(1);
   
   /* USER CODE END 2 */
 
@@ -175,32 +178,26 @@ void SystemClock_Config(void)
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   if (htim->Instance == TIM2) {
-    static int16_t last_cnt = 0;
-    int16_t cnt = (int16_t)__HAL_TIM_GET_COUNTER(&htim4);
-    int16_t delta = (int16_t)(cnt - last_cnt); 
-    last_cnt = cnt;
+    float rpm = Motor_GetRPM();
+    float current = Motor_GetCurrent();
 
-    float dt = 0.01f; 
-    float pulses = (float)delta;
-    float rpm = (pulses / (float)ENCODER_PULSES_PER_REV) * (60.0f / dt);
+    float current_target = PID_Update(&speed_pid, rpm);
 
+    PID_SetTarget(&current_pid, current_target);
+    float pwm = PID_Update(&current_pid, current);
 
-    float pwm = PID_Update(rpm);
-    
-
-    if (PID_GetTarget() > 0.0f && pwm > 0.0f && pwm < MOTOR_DEADZONE) {
+    if (PID_GetTarget(&speed_pid) > 0.0f && pwm > 0.0f && pwm < MOTOR_DEADZONE) {
       pwm = MOTOR_DEADZONE;
     }
-    
+
     if (pwm < 0) pwm = 0;
     if (pwm > 999) pwm = 999;
-    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, (uint32_t)pwm);
-
+    Motor_SetPWM((uint32_t)pwm);
 
     static uint8_t print_cnt = 0;
-    if (++print_cnt >= 10) { 
+    if (++print_cnt >= 10) {
       print_cnt = 0;
-      printf("%.1f,%.1f\r\n", PID_GetTarget(), rpm);
+      printf("%.1f,%.1f,%.2f,%.2f\r\n", PID_GetTarget(&speed_pid), rpm, current_target, current);
     }
   }
 }

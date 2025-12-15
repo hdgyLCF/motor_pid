@@ -1,86 +1,74 @@
 #include "pid.h"
 
-static float kp = 0.0f;
-static float ki = 0.0f;
-static float kd = 0.0f;
-static float dt_global = 0.01f;
-static float out_min_global = 0.0f;
-static float out_max_global = 1000.0f;
-
-static float target_rpm = 0.0f;
-
-static float e_k_1 = 0.0f;
-static float e_k_2 = 0.0f;
-static float u_k_1 = 0.0f;
-static float integral_sum = 0.0f;
-static float filtered_rpm = 0.0f;
-
-void PID_Init(float Kp, float Ki, float Kd, float dt, float out_min, float out_max)
+void PID_Init(PID_Controller *pid, float Kp, float Ki, float Kd, float dt, float out_min, float out_max)
 {
-    kp = Kp;
-    ki = Ki;
-    kd = Kd;
-    dt_global = dt;
-    out_min_global = out_min;
-    out_max_global = out_max;
-    e_k_1 = e_k_2 = 0.0f;
-    u_k_1 = 0.0f;
-    integral_sum = 0.0f;
-    filtered_rpm = 0.0f;
+    pid->kp = Kp;
+    pid->ki = Ki;
+    pid->kd = Kd;
+    pid->dt = dt;
+    pid->out_min = out_min;
+    pid->out_max = out_max;
+    pid->target = 0.0f;
+    pid->e_k_1 = 0.0f;
+    pid->e_k_2 = 0.0f;
+    pid->u_k_1 = 0.0f;
+    pid->integral_sum = 0.0f;
+    pid->filtered_meas = 0.0f;
 }
 
-void PID_Reset(void)
+void PID_Reset(PID_Controller *pid)
 {
-    e_k_1 = e_k_2 = 0.0f;
-    u_k_1 = 0.0f;
-    integral_sum = 0.0f;
-    filtered_rpm = 0.0f;
+    pid->e_k_1 = 0.0f;
+    pid->e_k_2 = 0.0f;
+    pid->u_k_1 = 0.0f;
+    pid->integral_sum = 0.0f;
+    pid->filtered_meas = 0.0f;
 }
 
-//设置目标转速
-void PID_SetTarget(float rpm)
+//设置目标
+void PID_SetTarget(PID_Controller *pid, float target)
 {
-    target_rpm = rpm;
+    pid->target = target;
 }
 
-float PID_GetTarget(void)
+float PID_GetTarget(PID_Controller *pid)
 {
-    return target_rpm;
+    return pid->target;
 }
 
-//增量式PID实现
-float PID_Update(float measurement_rpm)
+
+float PID_Update(PID_Controller *pid, float measurement)
 {
-    filtered_rpm = MEAS_LPF_ALPHA * measurement_rpm + (1.0f - MEAS_LPF_ALPHA) * filtered_rpm;
+    pid->filtered_meas = MEAS_LPF_ALPHA * measurement + (1.0f - MEAS_LPF_ALPHA) * pid->filtered_meas;
 
-    float e_k = target_rpm - filtered_rpm;
+    float e_k = pid->target - pid->filtered_meas;
 
-    float de1 = e_k - e_k_1;
-    float de2 = e_k - 2.0f*e_k_1 + e_k_2;
+    float de1 = e_k - pid->e_k_1;
+    float de2 = e_k - 2.0f * pid->e_k_1 + pid->e_k_2;
 
-    integral_sum = integral_sum + e_k * dt_global;
-    if (u_k_1 >= out_max_global && e_k > 0.0f) {
-        integral_sum = integral_sum - e_k * dt_global;
+    pid->integral_sum = pid->integral_sum + e_k * pid->dt;
+    if (pid->u_k_1 >= pid->out_max && e_k > 0.0f) {
+        pid->integral_sum = pid->integral_sum - e_k * pid->dt;
     }
-    if (u_k_1 <= out_min_global && e_k < 0.0f) {
-        integral_sum = integral_sum - e_k * dt_global;
+    if (pid->u_k_1 <= pid->out_min && e_k < 0.0f) {
+        pid->integral_sum = pid->integral_sum - e_k * pid->dt;
     }
-    if (integral_sum > PID_I_LIMIT) integral_sum = PID_I_LIMIT;
-    if (integral_sum < -PID_I_LIMIT) integral_sum = -PID_I_LIMIT;
+    if (pid->integral_sum > PID_I_LIMIT) pid->integral_sum = PID_I_LIMIT;
+    if (pid->integral_sum < -PID_I_LIMIT) pid->integral_sum = -PID_I_LIMIT;
 
-    float du = kp * de1 + ki * integral_sum + kd * (de2 / dt_global);
-    float u_k = u_k_1 + du;
+    float du = pid->kp * de1 + pid->ki * pid->integral_sum + pid->kd * (de2 / pid->dt);
+    float u_k = pid->u_k_1 + du;
 
     float max_change = PID_RATE_LIMIT;
-    if (u_k > u_k_1 + max_change) u_k = u_k_1 + max_change;
-    if (u_k < u_k_1 - max_change) u_k = u_k_1 - max_change;
+    if (u_k > pid->u_k_1 + max_change) u_k = pid->u_k_1 + max_change;
+    if (u_k < pid->u_k_1 - max_change) u_k = pid->u_k_1 - max_change;
 
-    if (u_k > out_max_global) u_k = out_max_global;
-    if (u_k < out_min_global) u_k = out_min_global;
+    if (u_k > pid->out_max) u_k = pid->out_max;
+    if (u_k < pid->out_min) u_k = pid->out_min;
 
-    e_k_2 = e_k_1;
-    e_k_1 = e_k;
-    u_k_1 = u_k;
+    pid->e_k_2 = pid->e_k_1;
+    pid->e_k_1 = e_k;
+    pid->u_k_1 = u_k;
 
     return u_k;
 }
